@@ -2,307 +2,127 @@
 <html>
 <head>
 <meta charset="utf-8">
-ame="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Neon Wolf3D</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Neon Corridor Run</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#050505;font-family:'Space Grotesk',sans-serif;color:#fff;overflow:hidden}
-canvas{display:block;width:100vw;height:100vh;background:#000}
-#hud{position:absolute;top:15px;left:15px;display:flex;gap:20px;align-items:center;font-size:14px;text-shadow:0 0 8px #0ff}
+body{background:#03050c;font-family:'Space Grotesk',sans-serif;color:#fff;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;background:#03050c}
+#hud{position:absolute;top:18px;left:18px;display:flex;gap:24px;align-items:flex-start;font-size:14px;text-transform:uppercase;letter-spacing:1px;mix-blend-mode:screen}
 #hud div{display:flex;flex-direction:column;font-weight:600}
-#hud span{font-size:28px}
-#mini{position:absolute;top:15px;right:15px;border:1px solid rgba(255,255,255,.2);width:150px;height:150px;background:rgba(0,0,0,.5);border-radius:12px}
-#touch-controls{position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:space-between;padding:0 20px;pointer-events:none}
-.control-pad{display:grid;grid-template-columns:repeat(3,60px);grid-template-rows:repeat(3,60px);gap:8px;pointer-events:auto}
-.control-pad button{background:rgba(15,15,35,.8);border:none;border-radius:12px;font-size:24px;color:#0ff;box-shadow:0 0 12px rgba(0,255,255,.4);}
-.control-pad button:active{background:rgba(0,255,255,.5);color:#000}
-.fire-pad{display:flex;flex-direction:column;gap:12px;pointer-events:auto}
-.fire-pad button{width:80px;height:80px;border-radius:50%;border:none;background:radial-gradient(circle,#ffef00,#ff6600);box-shadow:0 0 20px rgba(255,128,0,.8);font-size:28px;color:#300;font-weight:700}
-.fire-pad button:active{filter:brightness(1.2)}
-@media(min-width:1024px){#touch-controls{display:none}}
-#crosshair{position:absolute;top:50%;left:50%;width:40px;height:40px;margin:-20px 0 0 -20px;pointer-events:none}
-#crosshair:before,#crosshair:after{content:"";position:absolute;background:#0ff;box-shadow:0 0 8px #0ff}
-#crosshair:before{width:40px;height:2px;top:19px;left:0}
-#crosshair:after{width:2px;height:40px;left:19px;top:0}
+#hud span{font-size:28px;letter-spacing:0;color:#f7f9ff;text-shadow:0 0 15px rgba(255,255,255,.7)}
+#mini{position:absolute;top:18px;right:18px;border:1px solid rgba(255,255,255,.15);width:140px;height:140px;background:rgba(3,5,12,.6);border-radius:14px;backdrop-filter:blur(10px)}
+#crosshair{position:absolute;top:50%;left:50%;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;mix-blend-mode:screen}
+#crosshair::before,#crosshair::after{content:"";position:absolute;background:linear-gradient(90deg,#0ff,#ff00ff);box-shadow:0 0 12px rgba(0,255,255,.7)}
+#crosshair::before{width:34px;height:2px;top:16px;left:0}
+#crosshair::after{width:2px;height:34px;left:16px;top:0}
 #message{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:32px;text-align:center;text-shadow:0 0 20px #0ff;display:none}
+#swipe-hint{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);font-size:15px;letter-spacing:1px;text-transform:uppercase;color:#e0f7ff;text-shadow:0 0 10px rgba(0,255,255,.7);opacity:.85}
 </style>
 </head>
 <body>
 <canvas id="view"></canvas>
 <canvas id="mini"></canvas>
 <div id="hud">
-  <div>HEALTH<span id="health">100</span></div>
-  <div>AMMO<span id="ammo">50</span></div>
-  <div>SCORE<span id="score">0</span></div>
-  <div>LEVEL<span id="level">1</span></div>
+  <div>Health<span id="health">100</span></div>
+  <div>Ammo<span id="ammo">50</span></div>
+  <div>Score<span id="score">0</span></div>
 </div>
 <div id="crosshair"></div>
-<div id="touch-controls">
-  <div class="control-pad">
-    <span></span><button data-act="forward">▲</button><span></span>
-    <button data-act="left">◀</button><span></span><button data-act="right">▶</button>
-    <span></span><button data-act="back">▼</button><span></span>
-  </div>
-  <div class="control-pad">
-    <span></span><button data-act="turn-left">⤺</button><span></span>
-    <button data-act="strafe-left">⇤</button><span></span><button data-act="strafe-right">⇥</button>
-    <span></span><button data-act="turn-right">⤻</button><span></span>
-  </div>
-  <div class="fire-pad">
-    <button data-act="fire">⚡</button>
-  </div>
-</div>
+<div id="swipe-hint">Swipe to steer · Tap to fire</div>
 <div id="message"></div>
 <script>
 const canvas=document.getElementById('view');
 const ctx=canvas.getContext('2d');
 const mini=document.getElementById('mini');
 const mctx=mini.getContext('2d');
-let W,H;
-const DPR=window.devicePixelRatio||1;
-function resize(){W=canvas.width=innerWidth*DPR;H=canvas.height=innerHeight*DPR;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.imageSmoothingEnabled=false;
-mini.width=150*DPR;mini.height=150*DPR;mini.style.width='150px';mini.style.height='150px';}
+let W,H,DPR=window.devicePixelRatio||1;
+function resize(){W=canvas.width=innerWidth*DPR;H=canvas.height=innerHeight*DPR;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.imageSmoothingEnabled=false;mini.width=140*DPR;mini.height=140*DPR;mini.style.width='140px';mini.style.height='140px';}
 resize();addEventListener('resize',resize);
 
 const map=[
-[1,1,1,1,1,1,1,1,1,1,1,1],
-[1,0,0,0,0,0,0,0,0,0,0,1],
-[1,0,2,0,2,0,2,0,2,0,0,1],
-[1,0,0,0,0,0,0,0,0,0,0,1],
-[1,0,0,3,0,3,0,3,0,0,0,1],
-[1,0,0,0,0,0,0,0,0,0,0,1],
-[1,0,2,0,2,0,2,0,2,0,0,1],
-[1,0,0,0,0,0,0,0,0,0,0,1],
-[1,0,0,0,0,0,0,0,0,4,0,1],
-[1,0,0,0,0,0,0,0,0,0,0,1],
-[1,1,1,1,1,1,1,1,1,1,1,1]
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+[1,0,0,0,0,0,0,0,0,2,0,0,0,1],
+[1,0,3,0,3,0,3,0,0,0,0,2,0,1],
+[1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+[1,0,0,4,0,4,0,4,0,0,0,0,0,1],
+[1,0,0,0,0,0,0,0,0,3,0,0,0,1],
+[1,0,2,0,2,0,2,0,2,0,0,0,0,1],
+[1,0,0,0,0,0,0,0,0,0,0,4,0,1],
+[1,0,0,0,3,0,0,0,0,0,0,0,0,1],
+[1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
-const MAP_W=map[0].length;
-const MAP_H=map.length;
-const TILE=64;
+const MAP_W=map[0].length, MAP_H=map.length, TILE=64;
 
-let player={x:3.5*TILE,y:5.5*TILE,angle:0,fov:Math.PI/3,spd:2.8,turnSpeed:0.05,health:100,ammo:50,score:0,level:1};
-
-let keys={};
-let actions={forward:false,back:false,left:false,right:false,turnLeft:false,turnRight:false,strafeLeft:false,strafeRight:false,fire:false};
-
-const enemies=[
-  {x:8.5*TILE,y:4.5*TILE,alive:true,health:50},
-  {x:5.5*TILE,y:2.5*TILE,alive:true,health:50}
-];
-
-function handleInput(){
-  actions.forward=keys['w']||keys['ArrowUp']||actions.forward;
-  actions.back=keys['s']||keys['ArrowDown']||actions.back;
-  actions.turnLeft=keys['ArrowLeft']||actions.turnLeft;
-  actions.turnRight=keys['ArrowRight']||actions.turnRight;
-  actions.strafeLeft=keys['a']||actions.strafeLeft;
-  actions.strafeRight=keys['d']||actions.strafeRight;
-}
-function clearTouchActions(){actions.forward=actions.back=actions.left=actions.right=actions.turnLeft=actions.turnRight=actions.strafeLeft=actions.strafeRight=false;}
-
-document.addEventListener('keydown',e=>{keys[e.key]=true;if(e.key===' ')shoot();});
-document.addEventListener('keyup',e=>{keys[e.key]=false});
-
-const touchButtons=document.querySelectorAll('#touch-controls button');
-touchButtons.forEach(btn=>{
-  const act=btn.dataset.act;
-  const setState=state=>{actions[actMap(act)] = state;};
-  btn.addEventListener('touchstart',e=>{e.preventDefault();setState(true);if(act==='fire')shoot();});
-  btn.addEventListener('touchend',e=>{e.preventDefault();setState(false);});
-  btn.addEventListener('mousedown',e=>{e.preventDefault();setState(true);if(act==='fire')shoot();});
-  btn.addEventListener('mouseup',e=>{e.preventDefault();setState(false);});
-});
-function actMap(act){
-  switch(act){
-    case 'forward':return'forward';
-    case 'back':return'back';
-    case 'left':return'left';
-    case 'right':return'right';
-    case 'turn-left':return'turnLeft';
-    case 'turn-right':return'turnRight';
-    case 'strafe-left':return'strafeLeft';
-    case 'strafe-right':return'strafeRight';
-    case 'fire':return'fire';
-  }
-}
-
-let lastFire=0;
-function shoot(){
-  const now=performance.now();
-  if(player.ammo<=0||now-lastFire<300)return;
-  player.ammo--;lastFire=now;
-  document.getElementById('ammo').textContent=player.ammo;
-  const hit=castRay(player.angle,true);
-  if(hit && hit.distance<TILE*8){
-    if(hit.enemy){
-      hit.enemy.health-=50;
-      spawnHit(hit.enemy.x,hit.enemy.y);
-      if(hit.enemy.health<=0){
-        hit.enemy.alive=false;player.score+=250;updateHUD();
-      }
-    }
-  }
-}
-
+const player={x:2.5*TILE,y:5.5*TILE,angle:0,fov:Math.PI/2.8,speed:2.4,ammo:50,health:100,score:0};
+const enemies=[{x:9.5*TILE,y:3.5*TILE,health:60,alive:true},{x:6.5*TILE,y:2.5*TILE,health:60,alive:true}];
 const sparkles=[];
-function spawnHit(x,y){
-  for(let i=0;i<12;i++){
-    sparkles.push({x,y,vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6,life:1});
-  }
-}
 
-function updateHUD(){
-  document.getElementById('health').textContent=player.health;
-  document.getElementById('score').textContent=player.score;
-  document.getElementById('level').textContent=player.level;
-}
+function isWall(x,y){const mx=Math.floor(x/TILE),my=Math.floor(y/TILE);return mx<0||my<0||mx>=MAP_W||my>=MAP_H||map[my][mx]>0;}
 
-function move(){
-  handleInput();
-  const moveStep=player.spd;
-  if(actions.turnLeft)player.angle-=player.turnSpeed;
-  if(actions.turnRight)player.angle+=player.turnSpeed;
-  const cos=Math.cos(player.angle);
-  const sin=Math.sin(player.angle);
-  let dx=0,dy=0;
-  if(actions.forward){dx+=cos*moveStep;dy+=sin*moveStep;}
-  if(actions.back){dx-=cos*moveStep;dy-=sin*moveStep;}
-  if(actions.strafeLeft){dx+=-sin*moveStep;dy+=cos*moveStep;}
-  if(actions.strafeRight){dx+=sin*moveStep;dy+=-cos*moveStep;}
-  tryMove(dx,dy);
-  clearTouchActions();
-}
+function castRay(angle,options={}){const sin=Math.sin(angle),cos=Math.cos(angle);let d=0;while(d<1500){const rx=player.x+cos*d,ry=player.y+sin*d;if(isWall(rx,ry)){const mx=Math.floor(rx/TILE),my=Math.floor(ry/TILE);return {dist:d,tex:map[my][mx],hx:rx,hy:ry};}if(options.enemy){for(const e of enemies){if(!e.alive)continue;if(Math.hypot(e.x-rx,e.y-ry)<22)return{dist:d,enemy:e};}}d+=5;}return null;}
 
-function tryMove(dx,dy){
-  let nx=player.x+dx;
-  let ny=player.y+dy;
-  if(!isWall(nx,player.y))player.x=nx;
-  if(!isWall(player.x,ny))player.y=ny;
-}
+function spawnHit(x,y){for(let i=0;i<14;i++){sparkles.push({x,y,vx:(Math.random()-0.5)*7,vy:(Math.random()-0.5)*7,life:1});}}
 
-function isWall(x,y){
-  const mx=Math.floor(x/TILE);
-  const my=Math.floor(y/TILE);
-  if(mx<0||my<0||mx>=MAP_W||my>=MAP_H)return true;
-  return map[my][mx]>0;
-}
+let lastShot=0;
+function shoot(){const now=performance.now();if(now-lastShot<280||player.ammo<=0)return;player.ammo--;document.getElementById('ammo').textContent=player.ammo;lastShot=now;const hit=castRay(player.angle,{enemy:true});if(hit&&hit.enemy&&hit.dist<700){hit.enemy.health-=40;spawnHit(hit.enemy.x,hit.enemy.y);if(hit.enemy.health<=0){hit.enemy.alive=false;player.score+=400;document.getElementById('score').textContent=player.score;}}}
 
-function castRay(angle,returnEnemy){
-  const sin=Math.sin(angle);
-  const cos=Math.cos(angle);
-  let distance=0;
-  while(distance<1200){
-    const rx=player.x+cos*distance;
-    const ry=player.y+sin*distance;
-    if(isWall(rx,ry)){
-      const mx=Math.floor(rx/TILE);
-      const my=Math.floor(ry/TILE);
-      const tex=map[my][mx];
-      return {distance,tex,hx:rx,hy:ry};
-    }
-    if(returnEnemy){
-      for(const enemy of enemies){
-        if(enemy.alive && Math.hypot(enemy.x-rx,enemy.y-ry)<20){
-          return {distance,enemy};
-        }
-      }
-    }
-    distance+=4;
-  }
-  return null;
-}
+document.addEventListener('pointerdown',handlePointerDown);
+document.addEventListener('pointermove',handlePointerMove);
+document.addEventListener('pointerup',handlePointerUp);
+document.addEventListener('pointercancel',handlePointerUp);
+let pointerStart=null,swipeActive=false;
+function handlePointerDown(e){pointerStart={x:e.clientX,y:e.clientY,time:performance.now()};swipeActive=true;}
+function handlePointerMove(e){if(!swipeActive||!pointerStart)return;const dx=e.clientX-pointerStart.x;if(Math.abs(dx)>30){const turn=dx*0.0025;player.angle+=turn;pointerStart.x=e.clientX;}}
+function handlePointerUp(e){if(!pointerStart)return;const dt=performance.now()-pointerStart.time;const dist=Math.hypot(e.clientX-pointerStart.x,e.clientY-pointerStart.y);if(dt<200&&dist<25)shoot();pointerStart=null;swipeActive=false;}
 
-function render3D(){
-  ctx.fillStyle='#050510';
-  ctx.fillRect(0,0,W,H);
-  const numRays=Math.floor(W/2);
-  const angleStep=player.fov/numRays;
-  for(let i=0;i<numRays;i++){
-    const rayAngle=player.angle-player.fov/2 + i*angleStep;
-    const hit=castRay(rayAngle,false);
-    if(!hit)continue;
-    const correctedDist=hit.distance*Math.cos(rayAngle-player.angle);
-    const wallHeight=(TILE/correctedDist)*(W/2);
-    const shade=Math.max(0.2,1-correctedDist/900);
-    const hue=hit.tex===1?200:hit.tex===2?330:hit.tex===3?60:120;
-    const color=`hsla(${hue},80%,${45+shade*35}%,1)`;
-    const x=i*2;
-    ctx.fillStyle=color;
-    ctx.fillRect(x,(H-wallHeight)/2,2,wallHeight);
-    ctx.fillStyle=`rgba(0,0,0,${(1-shade)*0.7})`;
-    ctx.fillRect(x,(H-wallHeight)/2,2,wallHeight);
-  }
-  enemies.forEach(enemy=>{
-    if(!enemy.alive)return;
-    const dx=enemy.x-player.x;
-    const dy=enemy.y-player.y;
-    const dist=Math.hypot(dx,dy);
-    const angle=Math.atan2(dy,dx)-player.angle;
-    if(angle<-Math.PI)angle+=Math.PI*2;
-    if(angle>Math.PI)angle-=Math.PI*2;
-    if(Math.abs(angle)>player.fov/1.5) return;
-    const size=Math.min(2000/dist,200);
-    const screenX=W/2 + Math.tan(angle)/(player.fov/2)*(W/2);
-    const top=H/2 - size;
-    const grad=ctx.createLinearGradient(screenX-size/2,top,screenX+size/2,top+size*2);
-    grad.addColorStop(0,'rgba(255,255,255,.1)');
-    grad.addColorStop(0.5,'rgba(255,0,120,.9)');
-    grad.addColorStop(1,'rgba(60,0,30,.4)');
-    ctx.fillStyle=grad;
-    ctx.fillRect(screenX-size/2,top,size, size*2);
-    ctx.strokeStyle='rgba(0,255,255,.4)';
-    ctx.strokeRect(screenX-size/2,top,size,size*2);
-  });
-  for(let i=sparkles.length-1;i>=0;i--){
-    const s=sparkles[i];
-    s.x+=s.vx;s.y+=s.vy;s.vx*=0.92;s.vy*=0.92;s.life-=0.02;
-    const dx=s.x-player.x,dy=s.y-player.y;
-    const dist=Math.hypot(dx,dy);
-    const angle=Math.atan2(dy,dx)-player.angle;
-    if(Math.abs(angle)>player.fov/1.2||dist<1){sparkles.splice(i,1);continue;}
-    const size=Math.min(400/dist,30);
-    const screenX=W/2 + Math.tan(angle)/(player.fov/2)*(W/2);
-    const top=H/2 - size/2;
-    ctx.globalAlpha=s.life;
-    ctx.fillStyle='#ff0';
-    ctx.fillRect(screenX-size/2,top,size,size);
-    ctx.globalAlpha=1;
-    if(s.life<=0)sparkles.splice(i,1);
-  }
-}
+// desktop fallback (mouse movement)
+let mouseDown=false;window.addEventListener('mousedown',()=>mouseDown=true);window.addEventListener('mouseup',()=>mouseDown=false);
+window.addEventListener('mousemove',e=>{if(mouseDown&&!swipeActive){player.angle+=e.movementX*0.002;}if(mouseDown&&Math.abs(e.movementX)<2)shoot();});
+document.addEventListener('keydown',e=>{if(e.code==='Space')shoot();});
 
-function renderMini(){
-  mctx.clearRect(0,0,mini.width,mini.height);
-  const scale=(mini.width/DPR)/MAP_W;
-  for(let y=0;y<MAP_H;y++){
-    for(let x=0;x<MAP_W;x++){
-      if(map[y][x]){
-        mctx.fillStyle='rgba(0,255,255,.2)';
-        mctx.fillRect(x*scale,y*scale,scale,scale);
-      }
-    }
-  }
-  mctx.fillStyle='#ff0';
-  enemies.forEach(e=>{if(e.alive)mctx.fillRect(e.x/TILE*scale-2,e.y/TILE*scale-2,4,4);});
-  mctx.fillStyle='#0ff';
-  mctx.beginPath();
-  mctx.arc(player.x/TILE*scale,player.y/TILE*scale,4,0,Math.PI*2);
-  mctx.fill();
-  mctx.strokeStyle='#0ff';
-  mctx.beginPath();
-  mctx.moveTo(player.x/TILE*scale,player.y/TILE*scale);
-  mctx.lineTo(player.x/TILE*scale+Math.cos(player.angle)*10,player.y/TILE*scale+Math.sin(player.angle)*10);
-  mctx.stroke();
-}
+function moveForward(){const cos=Math.cos(player.angle),sin=Math.sin(player.angle);let nx=player.x+cos*player.speed;let ny=player.y+sin*player.speed;if(!isWall(nx,player.y))player.x=nx;if(!isWall(player.x,ny))player.y=ny;}
 
-function loop(){
-  requestAnimationFrame(loop);
-  move();
-  render3D();
-  renderMini();
-}
+function update(){moveForward();enemies.forEach(e=>{if(!e.alive)return;const dx=player.x-e.x,dy=player.y-e.y;const dist=Math.hypot(dx,dy);if(dist>200){e.x+=dx/dist*0.4;e.y+=dy/dist*0.4;}if(dist<80){player.health=Math.max(0,player.health-0.2);document.getElementById('health').textContent=player.health.toFixed(0);}});
+for(let i=sparkles.length-1;i>=0;i--){const s=sparkles[i];s.x+=s.vx;s.y+=s.vy;s.vx*=0.9;s.vy*=0.9;s.life-=0.02;if(s.life<=0)sparkles.splice(i,1);} }
 
+function render3D(){ctx.fillStyle='#03050c';ctx.fillRect(0,0,W,H);
+const horizon=H/2;const grad=ctx.createLinearGradient(0,0,0,H);
+grad.addColorStop(0,'rgba(5,10,30,0.7)');grad.addColorStop(0.45,'rgba(5,10,30,0.05)');grad.addColorStop(0.55,'rgba(2,4,8,0.05)');grad.addColorStop(1,'rgba(0,0,0,0.9)');
+ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+const rays=W/1.2;
+const angleStep=player.fov/rays;
+for(let i=0;i<rays;i++){
+  const angle=player.angle-player.fov/2+i*angleStep;
+  const hit=castRay(angle);
+  if(!hit)continue;
+  const dist=hit.dist*Math.cos(angle-player.angle);
+  const height=(TILE/dist)*(W/1.6);
+  const x=i*(W/rays);
+  const hue=hit.tex===1?210:hit.tex===2?320:hit.tex===3?45:140;
+  const sat=85,light=55;
+  const alpha=Math.max(0.15,1-dist/1200);
+  const color=`hsla(${hue},${sat}%,${light}%,${alpha})`;
+  ctx.fillStyle=color;
+  ctx.fillRect(x,(horizon-height/2),W/rays+1,height);
+  ctx.fillStyle=`rgba(0,0,0,${1-alpha})`;
+  ctx.fillRect(x,(horizon-height/2),W/rays+1,height);
+}
+renderEnemies();renderSparkles();}
+
+function renderEnemies(){enemies.forEach(enemy=>{if(!enemy.alive)return;const dx=enemy.x-player.x,dy=enemy.y-player.y;const dist=Math.hypot(dx,dy);const angle=Math.atan2(dy,dx)-player.angle;if(Math.abs(angle)>player.fov/1.7||dist<20)return;const size=Math.min(1200/dist,260);const screenX=W/2+Math.tan(angle)/(player.fov/2)*(W/2);const top=(H-size)/2;const gradient=ctx.createLinearGradient(screenX-size/2,top,screenX+size/2,top+size);
+gradient.addColorStop(0,'rgba(130,255,255,.0)');gradient.addColorStop(0.5,'rgba(255,60,130,.95)');gradient.addColorStop(1,'rgba(40,5,15,.4)');ctx.fillStyle=gradient;ctx.fillRect(screenX-size/2,top,size,size*1.5);ctx.strokeStyle='rgba(255,255,255,.15)';ctx.strokeRect(screenX-size/2,top,size,size*1.5);} );}
+
+function renderSparkles(){sparkles.forEach(s=>{const dx=s.x-player.x,dy=s.y-player.y;const dist=Math.hypot(dx,dy);const angle=Math.atan2(dy,dx)-player.angle;if(Math.abs(angle)>player.fov/1.5)return;const size=Math.min(400/dist,35);const screenX=W/2+Math.tan(angle)/(player.fov/2)*(W/2);const top=H/2-size/2;ctx.globalAlpha=s.life;ctx.fillStyle='#fffe80';ctx.fillRect(screenX-size/2,top,size,size);ctx.globalAlpha=1;});}
+
+function renderMini(){mctx.clearRect(0,0,mini.width,mini.height);const scale=(mini.width/DPR)/MAP_W;
+for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++)if(map[y][x]){mctx.fillStyle='rgba(0,255,255,.18)';mctx.fillRect(x*scale,y*scale,scale,scale);}
+ mctx.fillStyle='#ff5aa5';enemies.forEach(e=>{if(e.alive)mctx.fillRect(e.x/TILE*scale-2,e.y/TILE*scale-2,4,4);});
+ mctx.fillStyle='#00f7ff';mctx.beginPath();mctx.arc(player.x/TILE*scale,player.y/TILE*scale,4,0,Math.PI*2);mctx.fill();
+ mctx.strokeStyle='rgba(255,255,255,.4)';mctx.beginPath();mctx.moveTo(player.x/TILE*scale,player.y/TILE*scale);mctx.lineTo(player.x/TILE*scale+Math.cos(player.angle)*12,player.y/TILE*scale+Math.sin(player.angle)*12);mctx.stroke();}
+
+function loop(){requestAnimationFrame(loop);update();render3D();renderMini();}
 loop();
 </script>
 </body>
